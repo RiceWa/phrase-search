@@ -1,0 +1,7 @@
+.env
+phrase_search.db
+PSVenv
+__pycache__/
+.vscode/
+.idea/
+

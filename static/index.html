@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Phrase Search</title>
+</head>
+<body>
+    <h1>YouTube Phrase Search</h1>
+    <input type="text" id="searchInput" placeholder="Enter a phrase to search">
+    <button onclick="search()">Search</button>
+    <div id="results"></div>
+
+    <script>
+    async function search() {
+    const query = document.getElementById('searchInput').value;
+    const response = await fetch(`http://127.0.0.1:5000/search?q=${encodeURIComponent(query)}`);
+    const data = await response.json();
+
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = ''; // Clear previous results
+
+    if (data.error) {
+        resultsDiv.innerHTML = `<p>Error: ${data.error}</p>`;
+    } else if (data.results.length === 0) {
+        resultsDiv.innerHTML = `<p>No results found</p>`;
+    } else {
+        data.results.forEach(result => {
+            // Parse the timestamp into seconds
+            const timestampParts = result.timestamp.split(':').map(Number); // Split into [HH, MM, SS]
+            let seconds = 0;
+
+            // Calculate total seconds based on parts length
+            if (timestampParts.length === 3) {
+                seconds = timestampParts[0] * 3600 + timestampParts[1] * 60 + timestampParts[2]; // HH:MM:SS
+            } else if (timestampParts.length === 2) {
+                seconds = timestampParts[0] * 60 + timestampParts[1]; // MM:SS
+            } else {
+                seconds = timestampParts[0]; // SS (unlikely for your case)
+            }
+
+            // Construct the YouTube embed URL with timestamp
+            const embedUrl = `https://www.youtube.com/embed/${result.video_id}?start=${seconds}`;
+
+            // Create the video container
+            const videoContainer = document.createElement('div');
+            videoContainer.innerHTML = `
+                <iframe 
+                    width="560" 
+                    height="315" 
+                    src="${embedUrl}" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+                <p>${result.caption_text}</p>
+                <hr>
+            `;
+            resultsDiv.appendChild(videoContainer);
+        });
+    }
+}
+
+    </script>
+</body>
+</html>
