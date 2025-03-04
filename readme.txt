@@ -12,4 +12,4 @@ TO DO LIST
     -> If new_video = True, download all videos from past 24h
 - Upload website
 - Upload db (Azure/AWS)
-- ~~Hide API key~~
+- <strike>Hide API key</strike>
