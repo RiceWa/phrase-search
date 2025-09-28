@@ -1,66 +1,129 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Phrase Search</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YouTube Phrase Search</title>
+  <style>
+    :root { --fg:#111; --muted:#666; --bg:#fff; --accent:#4f46e5; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg:#eee; --muted:#aaa; --bg:#0b0b0d; --accent:#8b8bf6; }
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:2rem}
+    .card{width:min(900px,95vw)}
+    .search{display:flex;gap:.5rem}
+    .search input{flex:1;padding:.85rem 1rem;border-radius:12px;border:1px solid #ccc;background:transparent;color:inherit}
+    .search button{padding:.85rem 1.1rem;border-radius:12px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+    .status{color:var(--muted);text-align:center;margin:1rem 0}
+    .results{display:grid;gap:1.25rem;margin-top:1rem}
+    .item{border:1px solid #1f293733;border-radius:14px;overflow:hidden}
+    .meta{padding:.75rem 1rem;color:var(--muted)}
+    mark{background:#fde68a;color:inherit;padding:0 .15em;border-radius:4px}
+    iframe{width:100%;aspect-ratio:16/9;border:0;display:block;background:#000}
+  </style>
 </head>
 <body>
-    <h1>YouTube Phrase Search</h1>
-    <input type="text" id="searchInput" placeholder="Enter a phrase to search">
-    <button onclick="search()">Search</button>
-    <div id="results"></div>
+  <div class="wrap">
+    <div class="card">
+      <form class="search" id="searchForm" autocomplete="off">
+        <input id="searchInput" placeholder="Search a phrase…" autofocus />
+        <button>Search</button>
+      </form>
+      <div id="status" class="status">Type a phrase and press Enter.</div>
+      <div id="results" class="results" hidden></div>
+    </div>
+  </div>
 
-    <script>
-    async function search() {
-    const query = document.getElementById('searchInput').value;
-    const response = await fetch(`http://127.0.0.1:5000/search?q=${encodeURIComponent(query)}`);
-    const data = await response.json();
+<script>
+const API_URL = "/search";
 
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = ''; // Clear previous results
+const form = document.getElementById('searchForm');
+const input = document.getElementById('searchInput');
+const resultsDiv = document.getElementById('results');
+const statusEl = document.getElementById('status');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = input.value.trim();
+  if (!query) { resetUI(); return; }
+  statusEl.textContent = "Searching…";
+  statusEl.hidden = false;
+  resultsDiv.hidden = true;
+  resultsDiv.innerHTML = "";
+
+  try {
+    const res = await fetch(`${API_URL}?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
 
     if (data.error) {
-        resultsDiv.innerHTML = `<p>Error: ${data.error}</p>`;
-    } else if (data.results.length === 0) {
-        resultsDiv.innerHTML = `<p>No results found</p>`;
-    } else {
-        data.results.forEach(result => {
-            // Parse the timestamp into seconds
-            const timestampParts = result.timestamp.split(':').map(Number); // Split into [HH, MM, SS]
-            let seconds = 0;
-
-            // Calculate total seconds based on parts length
-            if (timestampParts.length === 3) {
-                seconds = timestampParts[0] * 3600 + timestampParts[1] * 60 + timestampParts[2]; // HH:MM:SS
-            } else if (timestampParts.length === 2) {
-                seconds = timestampParts[0] * 60 + timestampParts[1]; // MM:SS
-            } else {
-                seconds = timestampParts[0]; // SS (unlikely for your case)
-            }
-
-            // Construct the YouTube embed URL with timestamp
-            const embedUrl = `https://www.youtube.com/embed/${result.video_id}?start=${seconds}`;
-
-            // Create the video container
-            const videoContainer = document.createElement('div');
-            videoContainer.innerHTML = `
-                <iframe 
-                    width="560" 
-                    height="315" 
-                    src="${embedUrl}" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-                <p>${result.caption_text}</p>
-                <hr>
-            `;
-            resultsDiv.appendChild(videoContainer);
-        });
+      statusEl.textContent = `Error: ${data.error}`;
+      return;
     }
+    if (!data.results || data.results.length === 0) {
+      statusEl.textContent = "No results found.";
+      return;
+    }
+
+    renderResults(data.results, query);
+    statusEl.hidden = true;
+    resultsDiv.hidden = false;
+  } catch (err) {
+    statusEl.textContent = "Network or server error.";
+  }
+});
+
+function resetUI(){
+  resultsDiv.innerHTML = "";
+  resultsDiv.hidden = true;
+  statusEl.hidden = false;
+  statusEl.textContent = "Type a phrase and press Enter.";
 }
 
-    </script>
+function toSeconds(ts){
+  // Accept integer seconds or "HH:MM:SS" / "MM:SS"
+  if (typeof ts === "number") return Math.max(0, Math.floor(ts));
+  if (/^\d+$/.test(ts)) return Math.max(0, parseInt(ts,10));
+  const parts = String(ts).split(':').map(Number);
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  if (parts.length === 2) return parts[0]*60 + parts[1];
+  return 0;
+}
+
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function highlight(text, term){
+  if (!term) return escapeHTML(text);
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return escapeHTML(text).replace(new RegExp(`(${esc})`,'ig'),'<mark>$1</mark>');
+}
+
+function ytEmbedSrc(id, start){
+  const s = toSeconds(start);
+  return `https://www.youtube.com/embed/${id}?start=${s}&rel=0&modestbranding=1`;
+}
+
+function renderResults(list, term){
+  const frag = document.createDocumentFragment();
+  for (const r of list){
+    const s = toSeconds(r.timestamp);
+    const container = document.createElement('div');
+    container.className = 'item';
+    container.innerHTML = `
+      <iframe loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen src="${ytEmbedSrc(r.video_id, s)}"></iframe>
+      <div class="meta">
+        <div>${highlight(r.caption_text || "", term)}</div>
+        <div><a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=${r.video_id}&t=${s}s">Open on YouTube</a></div>
+      </div>
+    `;
+    frag.appendChild(container);
+  }
+  resultsDiv.appendChild(frag);
+}
+</script>
 </body>
 </html>

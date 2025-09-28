@@ -64,8 +64,10 @@ def main():
 
     print("Parsing caption files...")
     os.system("python file_parser.py")
-    print("Inserting data into the database...")
-    os.system("python data_insert.py")
+    # print("Inserting data into the database...")
+    # os.system("python data_insert.py")
+    print("Inserting data into the database (Postgres/Neon)...")
+    os.system("python data_insert_pg.py")
 
     print("Creating timestamped backup folder in 'backups' directory...")
     parent_backup_folder = "backups"

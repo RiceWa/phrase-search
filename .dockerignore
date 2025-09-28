@@ -1,0 +1,14 @@
+.git
+.vscode
+.idea
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+phrase-venv/
+vtt_files/
+backups/
+.env
+.env.*
+.DS_Store

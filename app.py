@@ -1,75 +1,77 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import sqlite3
+import os
+import psycopg
+from psycopg_pool import ConnectionPool
 
-app = Flask(__name__, static_folder='static')  # Serve frontend files from the 'static' directory
-CORS(app)  # Enable CORS for all routes
-DATABASE = 'phrase_search.db'  # SQLite database file
+# Serve frontend from /static (index.html)
+app = Flask(__name__, static_folder='static')
 
-# Helper function to connect to the database
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  # Enable dict-like access to rows
-    return conn
+# CORS (restrict in prod)
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
+CORS(app, resources={r"/*": {"origins": frontend_origin}})
 
-# Endpoint: Search for phrases in captions
-@app.route('/search', methods=['GET'])
+# Neon/Postgres pool
+DSN = os.getenv("DATABASE_URL")
+if not DSN:
+    raise RuntimeError("DATABASE_URL is not set")
+pool = ConnectionPool(conninfo=DSN, min_size=0, max_size=5, timeout=45)
+
+# health
+@app.route("/healthz")
+def healthz():
+    try:
+        with pool.connection() as conn:
+            conn.execute("select 1")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}, 500
+
+# /search?q=...&limit=20&offset=0
+@app.route("/search", methods=["GET"])
 def search():
-    phrase = request.args.get('q')  # Get the search query from the URL
+    phrase = request.args.get("q", "").strip()
+    limit = max(1, min(int(request.args.get("limit", 20)), 50))
+    offset = max(0, int(request.args.get("offset", 0)))
     if not phrase:
-        return jsonify({'error': 'Please provide a search query'}), 400
+        return jsonify({"error": "Please provide a search query"}), 400
 
-    # Log the received search phrase for debugging
-    print(f"Search phrase received: {phrase}")
+    use_fts = len(phrase) >= 2 and any(ch.isalnum() for ch in phrase)
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    with pool.connection() as conn, conn.cursor() as cur:
+        if use_fts:
+            sql = """
+            SELECT c.video_id, c."timestamp", c.caption_text
+            FROM captions c
+            WHERE to_tsvector('english'::regconfig, c.caption_text)
+                  @@ phraseto_tsquery('english'::regconfig, %(q)s)
+            ORDER BY ts_rank(
+                     to_tsvector('english'::regconfig, c.caption_text),
+                     phraseto_tsquery('english'::regconfig, %(q)s)
+                   ) DESC
+            LIMIT %(limit)s OFFSET %(offset)s;
+            """
+            cur.execute(sql, {"q": phrase, "limit": limit, "offset": offset})
+        else:
+            # rare fallback for very short / non-alphanumeric inputs
+            sql = """
+            SELECT c.video_id, c."timestamp", c.caption_text
+            FROM captions c
+            WHERE c.caption_text ILIKE %(pat)s
+            ORDER BY c."timestamp" ASC
+            LIMIT %(limit)s OFFSET %(offset)s;
+            """
+            cur.execute(sql, {"pat": f"%{phrase}%", "limit": limit, "offset": offset})
 
-    # Query the database for matching captions
-    cursor.execute(
-        '''
-        SELECT video_id, timestamp, caption_text
-        FROM captions
-        WHERE caption_text LIKE ?
-        ''',
-        ('%' + phrase + '%',)
-    )
-    results = cursor.fetchall()
-    conn.close()
+        rows = cur.fetchall()
 
-    # Format the results
-    formatted_results = [
-        {
-            'video_id': row['video_id'],
-            'timestamp': row['timestamp'],
-            'caption_text': row['caption_text']
-        }
-        for row in results
-    ]
+    results = [{"video_id": r[0], "timestamp": int(r[1]), "caption_text": r[2]} for r in rows]
+    return jsonify({"results": results, "limit": limit, "offset": offset})
 
-    return jsonify({'results': formatted_results})
-
-# Endpoint: Block an IP (for misuse tracking)
-blocked_ips = set()
-
-@app.before_request
-def block_ips():
-    ip = request.remote_addr
-    if ip in blocked_ips:
-        return jsonify({'error': 'Access denied'}), 403
-
-@app.route('/block_ip', methods=['POST'])
-def block_ip():
-    ip = request.json.get('ip')
-    if ip:
-        blocked_ips.add(ip)
-        return jsonify({'message': f'IP {ip} blocked'})
-    return jsonify({'error': 'IP not provided'}), 400
-
-# Serve the frontend HTML file
-@app.route('/')
+@app.route("/")
 def index():
-    return send_from_directory(app.static_folder, 'index.html')
+    return send_from_directory(app.static_folder, "index.html")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    # Local dev: python app.py
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)), debug=True)

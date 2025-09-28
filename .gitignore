@@ -1,7 +1,25 @@
-.env
-phrase_search.db
-PSVenv
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+phrase-venv/
+.pytest_cache/
+.mypy_cache/
+.python-version
+
+# Local data/artifacts
+vtt_files/
+backups/
+parsed_captions.txt
+video_urls.txt
+*.log
+
+# Environment / editor
+.env
+.env.*
+.DS_Store
 .vscode/
 .idea/
-
