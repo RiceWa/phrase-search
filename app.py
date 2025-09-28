@@ -75,3 +75,20 @@ def index():
 if __name__ == "__main__":
     # Local dev: python app.py
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)), debug=True)
+
+# liveness: no dependencies. Render should probe this.
+@app.route("/livez")
+def livez():
+    return {"ok": True, "version": os.getenv("RENDER_GIT_COMMIT", "")}
+
+# readiness: optional manual probe that hits Neon.
+@app.route("/readyz")
+def readyz():
+    try:
+        with pool.connection() as conn:
+            conn.execute("select 1")
+        return {"ok": True}
+    except Exception as e:
+        # return 200 so your service page still loads;
+        # but expose readiness=false for debugging
+        return {"ok": False, "error": str(e)}, 200

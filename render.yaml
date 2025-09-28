@@ -4,7 +4,9 @@ services:
     runtime: docker
     plan: free
     region: virginia
-    healthCheckPath: /healthz
+    branch: main
+    autoDeployTrigger: commit
+    healthCheckPath: /livez
     envVars:
       - key: DATABASE_URL
         sync: false
