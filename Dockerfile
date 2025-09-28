@@ -16,4 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Render sets $PORT. Use shell-form so $PORT expands.
-CMD gunicorn -b 0.0.0.0:$PORT app:app
+CMD gunicorn -b 0.0.0.0:$PORT --access-logfile - --error-logfile - app:app
+
+
