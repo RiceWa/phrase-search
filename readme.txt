@@ -1,14 +1,8 @@
 HOW TO USE
 
-1. run run.py and enter the channel ID
-2. run phrase_search.py to look for a phrase
+1. Go to [this website](https://phrase-search-api.onrender.com)
 
-TO DO LIST
+2. Search for any phrase you want
 
-- Upgrade website
-- Cell wrapping / longer phrase support
-- Auto upgrade db
-    -> check for new videos every 24h from list of channels
-    -> If new_video = True, download all videos from past 24h
-- Upload website
-- Upload db (Azure/AWS)
+Note: Due to limited storage on NEON, only videos by trash taste are currently available
+
