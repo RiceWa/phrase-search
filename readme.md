@@ -1,4 +1,4 @@
-HOW TO USE
+# HOW TO USE
 
 1. Go to [this website](https://phrase-search-api.onrender.com)
 
