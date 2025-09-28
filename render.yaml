@@ -4,28 +4,9 @@ services:
     runtime: docker
     plan: free
     region: virginia
-    branch: main
-    autoDeployTrigger: commit
     healthCheckPath: /healthz
     envVars:
       - key: DATABASE_URL
         sync: false
-      - key: FLASK_ENV
-        value: production
       - key: FRONTEND_ORIGIN
         value: "*"
-
-  - type: cron
-    name: daily-ingest
-    runtime: docker
-    plan: starter
-    region: virginia
-    branch: main
-    autoDeployTrigger: commit
-    schedule: "0 5 * * *"      # ~ midnight Toronto
-    dockerCommand: "python scheduled_ingest.py"
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: YOUTUBE_API_KEY
-        sync: false
